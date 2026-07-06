@@ -289,7 +289,7 @@ body{
 <div class="toast" id="toast"></div>
 
 <!-- Supabase JS CDN -->
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 "use strict";
 /* ===== 小袋 Life v1.3 · Supabase 云同步 ===== */
@@ -436,15 +436,15 @@ async function cloudLoad(){
 }
 
 // ===== Supabase 初始化 =====
-function initApp(){
-  if(!window.supabase){
-    console.warn("Supabase SDK 未加载");
-    state = loadLocal();
-    document.getElementById("footText").textContent = "小袋 Life v1.3 · 本地模式";
-    loginCheck();
-    render();
-    return;
-  }
+function bootLocal(){
+  state = loadLocal();
+  loginCheck();
+  render();
+  document.getElementById("footText").textContent = "小袋 Life v1.3 · 本地模式";
+}
+
+function initSupabase(){
+  if(!window.supabase) return;
   try {
     const { createClient } = window.supabase;
     sbClient = createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -462,14 +462,14 @@ function initApp(){
         onLogin(session.user);
       } else {
         showAuthModal(false);
+        document.getElementById("footText").textContent = "小袋 Life v1.3 · 登录后云端同步";
       }
+    }).catch(function(){
+      document.getElementById("footText").textContent = "小袋 Life v1.3 · 云端暂不可用";
     });
   } catch(e){
     console.warn("Supabase 初始化失败:", e);
-    state = loadLocal();
-    document.getElementById("footText").textContent = "小袋 Life v1.3 · 本地模式";
-    loginCheck();
-    render();
+    document.getElementById("footText").textContent = "小袋 Life v1.3 · 本地模式（云端异常）";
   }
 }
 
@@ -1013,16 +1013,23 @@ function importData(){
 }
 
 // ===== 启动 =====
-// 等待 Supabase SDK 加载
+// 1) 立刻用本地模式启动，不让页面卡住
+bootLocal();
+// 2) 再异步尝试加载 Supabase（5秒内加载好就连云端）
 if(window.supabase){
-  initApp();
+  initSupabase();
 } else {
-  // 轮询等待
   let tries = 0;
   const waitTimer = setInterval(function(){
     tries++;
-    if(window.supabase){ clearInterval(waitTimer); initApp(); }
-    else if(tries > 50){ clearInterval(waitTimer); initApp(); } // 5秒后放弃
+    if(window.supabase){
+      clearInterval(waitTimer);
+      initSupabase();
+    } else if(tries > 50){
+      // 5秒后 Supabase 还没加载（很可能被墙了），保持本地模式
+      clearInterval(waitTimer);
+      document.getElementById("footText").textContent = "小袋 Life v1.3 · 本地模式（云端暂不可用）";
+    }
   }, 100);
 }
 </script>
